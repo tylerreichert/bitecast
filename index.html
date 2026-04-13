@@ -1,0 +1,1093 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#060e1e">
+  <title>BiteCast</title>
+  <link rel="stylesheet" href="./redwoodfish.css">
+</head>
+<body>
+
+<!-- Disclaimer Modal -->
+<div id="disclaimer-overlay">
+  <div id="disclaimer-modal">
+    <div class="disc-logo"><img src="./logo.png" alt="BiteCast" style="width:220px;height:auto;object-fit:contain;max-width:100%;"></div>
+    <div class="disc-title">Before You Head Out</div>
+    <div class="disc-body">
+      <p>BiteCast provides fishing forecasts using public weather, ocean, and tide data. While we aim for accuracy, conditions can change quickly.</p>
+      <p>By using this app, you agree that:</p>
+      <ul>
+        <li>BiteCast is not responsible for decisions made using this information</li>
+		 <li>You should always verify current conditions</li>
+		 <li>Fishing involves risk. Always prioritize safety</li>
+      </ul>
+    </div>
+    <label class="disc-check-row" id="disc-check-label">
+      <input type="checkbox" id="disc-checkbox" onchange="discCheckChanged()">
+      <span class="disc-checkmark"></span>
+      <span class="disc-check-text">I understand and will verify conditions before departure</span>
+    </label>
+    <button class="disc-btn" id="disc-btn" onclick="acceptDisclaimer()" disabled>Continue to BiteCast</button>
+    <div class="disc-footer">This notice will not appear again on this device.</div>
+  </div>
+</div>
+
+<!-- Loading -->
+<div id="loading">
+  <img src="./logo.png" alt="BiteCast" style="width:380px;height:auto;object-fit:contain;border-radius:14px;max-width:90vw;">
+  <div class="load-sub" id="load-msg">Getting your location…</div>
+  <div class="spinner"></div>
+</div>
+
+<!-- Error -->
+<div id="error">
+  <div class="err-icon">⚠️</div>
+  <div class="err-title">Couldn't load conditions</div>
+  <div class="err-msg" id="error-msg">Please allow location access and try again.</div>
+  <button class="btn" onclick="init()">Try Again</button>
+</div>
+
+<!-- Main -->
+<div id="main">
+  <div class="hdr">
+    <div class="hdr-top">
+      <img src="./logo.png" alt="BiteCast" style="height:100px;width:auto;object-fit:contain;border-radius:6px;">
+      <button class="refresh-btn" id="refresh-btn" onclick="refresh()" title="Refresh">↻</button>
+    </div>
+    <div class="loc-row">
+      <div class="loc-dot"></div>
+      <span id="loc-name">Detecting location…</span>
+    </div>
+    <div class="zip-row">
+      <input class="zip-input" id="zip-input" type="text" placeholder="Search Zip Code or City Name…" onkeydown="if(event.key==='Enter')searchZip()">
+      <button class="zip-go" onclick="searchZip()">Search</button>
+      <button class="zip-gps" onclick="useGPS()" title="Use my location">📍</button>
+    </div>
+    <div class="zip-err" id="zip-err"></div>
+  </div>
+
+  <div class="content">
+
+    <!-- Verdict -->
+    <div class="verdict" id="verdict">
+      <span class="v-emoji" id="v-emoji">🟡</span>
+      <div class="v-label" id="v-label">Loading…</div>
+      <div class="v-sub" id="v-sub">Checking conditions</div>
+      <div class="score-bg"><div class="score-fill" id="score-fill" style="width:0%"></div></div>
+      <div class="score-lbl" id="score-lbl"></div>
+    </div>
+
+    <!-- Wind & Weather -->
+    <div class="sec" style="display:flex;align-items:center;justify-content:space-between;">
+      <span>Wind &amp; Weather</span>
+      <span id="cond-label" style="font-size:10px;color:var(--blue-l);font-weight:600;letter-spacing:.5px;text-transform:none;">Current conditions</span>
+    </div>
+    <div class="g2">
+      <div class="cc">
+        <div class="cc-head">
+          <span class="cc-lbl"><span class="ind n" id="wind-ind"></span>Wind</span>
+          <span id="wind-arr" style="font-size:17px;color:var(--muted)">—</span>
+        </div>
+        <div class="cv" id="wind-val">—<span class="cu">mph</span></div>
+        <div class="cs" id="wind-dir">—</div>
+        <div class="cs" id="wind-gust">—</div>
+      </div>
+      <div class="cc">
+        <div class="cc-head">
+          <span class="cc-lbl"><span class="ind n" id="rain-ind"></span>Rain</span>
+        </div>
+        <div class="cv" id="rain-val">—<span class="cu">%</span></div>
+        <div class="cs" id="wx-desc">—</div>
+        <div class="cs" id="temp-val">—</div>
+      </div>
+    </div>
+
+    <!-- Swell & Waves -->
+    <div class="sec" id="swell-sec">Swell &amp; Waves</div>
+    <div class="g2" id="swell-grid">
+      <div class="cc">
+        <div class="cc-head">
+          <span class="cc-lbl"><span class="ind n" id="swell-ind"></span>Swell</span>
+        </div>
+        <div class="cv" id="swell-val">—<span class="cu">ft</span></div>
+        <div class="cs" id="swell-dir">—</div>
+      </div>
+      <div class="cc">
+        <div class="cc-head">
+          <span class="cc-lbl"><span class="ind n" id="period-ind"></span>Period</span>
+        </div>
+        <div class="cv" id="period-val">—<span class="cu">s</span></div>
+        <div class="cs" id="wave-ht">—</div>
+      </div>
+    </div>
+
+    <!-- Hourly Forecast -->
+    <div class="sec">Forecast</div>
+    <div class="hourly-wrap">
+      <div class="day-tabs" id="day-tabs"></div>
+      <div class="hourly-tabs">
+        <button class="htab active" onclick="setHourlyTab('all',this)">All</button>
+        <button class="htab" onclick="setHourlyTab('wind',this)">Wind</button>
+        <button class="htab" onclick="setHourlyTab('rain',this)">Rain</button>
+        <button class="htab" onclick="setHourlyTab('tide',this)">Tide</button>
+        <button class="htab" onclick="setHourlyTab('swell',this)">Swell</button>
+      </div>
+      <div class="scroll-wrap">
+        <button class="scroll-btn left" onclick="scrollHourly(-1)">&#8249;</button>
+        <div class="hourly-scroll" id="hourly-scroll"><div class="no-data">Loading…</div></div>
+        <button class="scroll-btn right" onclick="scrollHourly(1)">&#8250;</button>
+      </div>
+    </div>
+
+    <!-- Tides -->
+    <div class="sec">Tides</div>
+    <div class="tide-card">
+      <div class="cc-head">
+        <span class="cc-lbl"><span class="ind n"></span><span id="tide-day-lbl">Today's Tides</span></span>
+        <span id="tide-now" style="font-size:13px;color:var(--blue-l)">—</span>
+      </div>
+      <!-- High / Low summary -->
+      <div id="tide-summary" style="display:flex;gap:8px;margin-bottom:10px;"></div>
+      <div class="tide-chart-wrap">
+        <svg id="tide-chart" viewBox="0 0 340 75" preserveAspectRatio="none"></svg>
+      </div>
+      <div class="tide-events" id="tide-events"><div class="no-data">Loading tides…</div></div>
+      <div class="tide-station-lbl" id="tide-station"></div>
+    </div>
+
+    <!-- Nearby Fish -->
+    <div class="sec">Common Catches Nearby</div>
+    <div class="fish-list" id="fish-list"><div class="no-data">Loading fish data…</div></div>
+    <div style="font-size:11px;color:var(--dim);text-align:center;margin-bottom:10px" id="fish-note"></div>
+
+    <!-- Regulations -->
+    <div class="sec">Fishing Regulations</div>
+    <div class="reg-card" id="reg-card">
+      <div class="no-data">Loading regulations…</div>
+    </div>
+
+    <div class="upd" id="upd-time"></div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+//  BiteCast — Fishing Conditions App
+// ═══════════════════════════════════════════════════════
+
+// ── Disclaimer ────────────────────────────────────────
+function discCheckChanged() {
+  document.getElementById('disc-btn').disabled = !document.getElementById('disc-checkbox').checked;
+}
+function acceptDisclaimer() {
+  try { localStorage.setItem('bitecast_disc_v1','1'); } catch(e){}
+  document.getElementById('disclaimer-overlay').style.display = 'none';
+}
+function checkDisclaimer() {
+  let accepted = false;
+  try { accepted = localStorage.getItem('bitecast_disc_v1') === '1'; } catch(e){}
+  if (!accepted) {
+    document.getElementById('disclaimer-overlay').style.display = 'flex';
+  } else {
+    document.getElementById('disclaimer-overlay').style.display = 'none';
+  }
+}
+checkDisclaimer();
+
+const state = { lat:null, lon:null, weather:null, marine:null, tides:null, fish:null, locName:null, locData:null, usingZip:false, zipName:null };
+
+// ── Utilities ─────────────────────────────────────────
+
+const compass = d => ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'][Math.round(d/22.5)%16];
+const dirArrow = d => ['↓','↙','←','↖','↑','↗','→','↘'][Math.round(d/45)%8];
+const m2ft = m => (m*3.28084).toFixed(1);
+const mph2kts = m => (m*0.868976).toFixed(0);
+const haversine = (a,b,c,d) => { const R=3959,dL=(c-a)*Math.PI/180,dO=(d-b)*Math.PI/180,x=Math.sin(dL/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dO/2)**2; return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x)); };
+
+const wxCode = c => c===0?'Clear sky':c<=2?['','Mainly clear','Partly cloudy'][c]:c===3?'Overcast':c<=48?'Foggy':c<=55?'Drizzle':c<=65?'Rain':c<=77?'Snow':c<=82?'Rain showers':c>=95?'Thunderstorm':'—';
+const wxEmoji = c => c===0?'☀️':c<=2?'⛅':c===3?'☁️':c<=48?'🌫️':c<=65?'🌧️':c<=77?'❄️':c<=82?'🌦️':c>=95?'⛈️':'🌡️';
+
+function fmtTime(str) {
+  const t = str.includes(' ') ? str.split(' ')[1] : str;
+  const [h,m] = t.split(':').map(Number);
+  return `${h%12||12}:${String(m).padStart(2,'0')} ${h>=12?'PM':'AM'}`;
+}
+function nowTime() { return new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}); }
+function nowMins() { const n=new Date(); return n.getHours()*60+n.getMinutes(); }
+function t2mins(str) { const t=str.includes(' ')?str.split(' ')[1]:str; const [h,m]=t.split(':').map(Number); return h*60+m; }
+function localDateStr(d) { return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`; }
+function localISODate(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+function hourLabel(h) { return h===0?'12 AM':h<12?`${h} AM`:h===12?'12 PM':`${h-12} PM`; }
+
+// ── Scoring ───────────────────────────────────────────
+
+const sWind = v => v<=5?100:v<=10?85:v<=15?65:v<=20?40:v<=25?20:0;
+const sSwell = v => v<=2?100:v<=4?80:v<=6?55:v<=8?30:10;
+const sPeriod = v => v>=14?100:v>=10?80:v>=7?55:v>=5?30:10;
+const sRain = v => v<=10?100:v<=30?80:v<=50?55:v<=70?30:10;
+const indClass = s => s>=65?'g':s>=40?'m':'b';
+
+function calcScore(wind, swell, period, rain) {
+  if (swell!==null && period!==null) return Math.round(sWind(wind)*.35 + sSwell(swell)*.25 + sRain(rain)*.25 + sPeriod(period)*.15);
+  return Math.round(sWind(wind)*.55 + sRain(rain)*.45);
+}
+
+// ── APIs ──────────────────────────────────────────────
+
+function getLocation() {
+  return new Promise((res, rej) => {
+    if (!navigator.geolocation) return rej(new Error('Geolocation is not supported by your browser.'));
+    navigator.geolocation.getCurrentPosition(
+      p => res({lat:p.coords.latitude, lon:p.coords.longitude}),
+      e => rej(new Error({1:'Location access denied. Please allow location in your browser settings.',2:'Location unavailable.',3:'Location request timed out.'}[e.code]||'Could not get location.')),
+      {enableHighAccuracy:true, timeout:12000, maximumAge:60000}
+    );
+  });
+}
+
+async function reverseGeocode(lat, lon) {
+  try {
+    const r = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`, {headers:{'Accept-Language':'en'}});
+    return await r.json();
+  } catch { return null; }
+}
+
+async function geocodeZip(zip) {
+  try {
+    const r = await fetch(`https://api.zippopotam.us/us/${zip}`);
+    if (!r.ok) return null;
+    const d = await r.json();
+    if (!d.places || !d.places.length) return null;
+    const place = d.places[0];
+    return {
+      lat: parseFloat(place.latitude),
+      lon: parseFloat(place.longitude),
+      name: `${place['place name']}, ${place['state abbreviation']}`,
+      state: place.state
+    };
+  } catch { return null; }
+}
+
+async function geocodeCity(query) {
+  try {
+    const encoded = encodeURIComponent(query);
+    const r = await fetch(
+      `https://nominatim.openstreetmap.org/search?q=${encoded}&format=json&limit=5&addressdetails=1`,
+      { headers: { 'Accept-Language': 'en' } }
+    );
+    if (!r.ok) return null;
+    const results = await r.json();
+    // Prefer results that are cities/towns/villages in the US
+    const best = results.find(r =>
+      r.address?.country_code === 'us' &&
+      ['city','town','village','municipality','suburb','county'].includes(r.type || r.class)
+    ) || results.find(r => r.address?.country_code === 'us') || results[0];
+    if (!best) return null;
+    const a = best.address || {};
+    const cityName = a.city || a.town || a.village || a.county || query;
+    const stateAbbr = a.state || '';
+    return {
+      lat: parseFloat(best.lat),
+      lon: parseFloat(best.lon),
+      name: stateAbbr ? `${cityName}, ${stateAbbr}` : cityName,
+      state: a.state || ''
+    };
+  } catch { return null; }
+}
+
+async function searchZip() {
+  const input = document.getElementById('zip-input');
+  const errEl = document.getElementById('zip-err');
+  const query = input.value.trim();
+
+  errEl.textContent = '';
+  if (!query) { errEl.textContent = 'Enter a zip code or city name.'; return; }
+
+  input.disabled = true;
+  document.querySelector('.zip-go').textContent = '…';
+
+  const isZip = /^\d{5}$/.test(query);
+  const loc = isZip ? await geocodeZip(query) : await geocodeCity(query);
+
+  input.disabled = false;
+  document.querySelector('.zip-go').textContent = 'Search';
+
+  if (!loc) {
+    errEl.textContent = isZip
+      ? `Zip code "${query}" not found. Try a city name instead.`
+      : `City "${query}" not found. Try adding a state (e.g. "Bodega Bay, CA").`;
+    return;
+  }
+
+  state.lat = loc.lat;
+  state.lon = loc.lon;
+  state.usingZip = true;
+  state.zipName = loc.name;
+
+  // Scroll to top
+  window.scrollTo({top: 0, behavior: 'smooth'});
+
+  // Show refreshing state in verdict
+  document.getElementById('loc-name').textContent = loc.name;
+  document.getElementById('v-label').textContent = 'Loading…';
+  document.getElementById('v-sub').textContent = `Checking conditions for ${loc.name}`;
+  document.getElementById('score-fill').style.width = '0%';
+
+  try { await loadData(); } catch(e) { errEl.textContent = 'Failed to load conditions. Try again.'; }
+}
+
+async function useGPS() {
+  const errEl = document.getElementById('zip-err');
+  const input = document.getElementById('zip-input');
+  errEl.textContent = '';
+  input.value = '';
+  state.usingZip = false;
+
+  document.getElementById('loc-name').textContent = 'Detecting location…';
+  document.getElementById('v-label').textContent = 'Loading…';
+  document.getElementById('v-sub').textContent = 'Getting your location';
+
+  try {
+    const loc = await getLocation();
+    state.lat = loc.lat;
+    state.lon = loc.lon;
+    await loadData();
+  } catch(e) {
+    errEl.textContent = e.message;
+  }
+}
+
+async function fetchWeather(lat, lon) {
+  const u = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
+    `&current=temperature_2m,apparent_temperature,precipitation_probability,precipitation,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m` +
+    `&hourly=wind_speed_10m,wind_direction_10m,wind_gusts_10m,precipitation_probability,weather_code,temperature_2m,apparent_temperature` +
+    `&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch&timezone=auto&forecast_days=7`;
+  const r = await fetch(u); if(!r.ok) throw new Error('Weather unavailable'); return r.json();
+}
+
+async function fetchMarine(lat, lon) {
+  try {
+    const u = `https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lon}` +
+      `&current=wave_height,wave_direction,wave_period,swell_wave_height,swell_wave_direction,swell_wave_period` +
+      `&hourly=wave_height,wave_direction,wave_period,swell_wave_height,swell_wave_direction,swell_wave_period` +
+      `&timezone=auto&forecast_days=7`;
+    const r = await fetch(u); if(!r.ok) return null;
+    const d = await r.json(); return d.error ? null : d;
+  } catch { return null; }
+}
+
+async function fetchTides(lat, lon) {
+  try {
+    const sr = await fetch('https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations.json?type=tidepredictions');
+    if(!sr.ok) return null;
+    const sd = await sr.json();
+    let nearest=null, minD=Infinity;
+    for (const s of sd.stations) {
+      const d = haversine(lat,lon,parseFloat(s.lat),parseFloat(s.lng));
+      if(d<minD){minD=d;nearest=s;}
+    }
+    if(!nearest||minD>250) return null;
+    const startDay = new Date();
+    const endDay = new Date(startDay); endDay.setDate(startDay.getDate() + 6);
+    const todayStr = localDateStr(startDay);
+    const endStr = localDateStr(endDay);
+    const base = `https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?station=${nearest.id}&product=predictions&datum=MLLW&time_zone=lst_ldt&units=english&application=fishcast&format=json`;
+    const [hiloRes, hrlyRes] = await Promise.all([
+      fetch(base + `&begin_date=${todayStr}&end_date=${endStr}&interval=hilo`),
+      fetch(base + `&begin_date=${todayStr}&end_date=${endStr}&interval=h`)
+    ]);
+    if(!hiloRes.ok) return null;
+    const hiloData = await hiloRes.json();
+    if(hiloData.error) return null;
+    let hourly = null;
+    if(hrlyRes.ok) { const hd = await hrlyRes.json(); if(!hd.error) hourly = hd.predictions; }
+    return {predictions:hiloData.predictions, hourly, station:nearest.name, id:nearest.id};
+  } catch { return null; }
+}
+
+async function fetchFish(lat, lon) {
+  try {
+    const u = `https://api.inaturalist.org/v1/observations/species_counts?taxon_id=47178&lat=${lat}&lng=${lon}&radius=40&quality_grade=research&per_page=10`;
+    const r = await fetch(u); if(!r.ok) return null;
+    const d = await r.json();
+    return d.results ? d.results.slice(0,5) : null;
+  } catch { return null; }
+}
+
+// ── Regulations data ──────────────────────────────────
+
+const REGS = {
+  'Alabama':       {agency:'Alabama Dept of Conservation',url:'https://www.outdooralabama.com/licenses-and-regulations',flag:'🐊',items:['Fishing license required for ages 16+','Saltwater: free license for residents on private land','Check size and bag limits by species']},
+  'Alaska':        {agency:'AK Dept of Fish & Game',url:'https://www.adfg.alaska.gov/index.cfm?adfg=fishinglicense.main',flag:'🐻',items:['Sport fish license required for residents & non-residents','King salmon stamp required for king salmon fishing','Check emergency orders for current openings/closures']},
+  'California':    {agency:'CA Dept of Fish & Wildlife',url:'https://wildlife.ca.gov/Regulations',flag:'🌉',items:['Fishing license required for all persons 16+','Ocean Enhancement Stamp required for certain ocean species','Report cards required for salmon, steelhead, sturgeon','Check current ocean conditions and closures at CDFW.gov']},
+  'Connecticut':   {agency:'CT Dept of Energy & Environmental Protection',url:'https://portal.ct.gov/DEEP/Fishing/Fishing',flag:'🌊',items:['Fishing license required for ages 16+','Trout & salmon stamp required for trout fishing','Shoreline fishing permit for certain areas']},
+  'Delaware':      {agency:'DE Division of Fish & Wildlife',url:'https://www.fw.delaware.gov/Pages/FishingLicenses.aspx',flag:'🦅',items:['Fishing license required for residents ages 16+','Crabbing license required for recreational crabbing','Check size/creel limits at DE F&W website']},
+  'Florida':       {agency:'Florida Fish & Wildlife Commission',url:'https://myfwc.com/fishing/',flag:'🐊',items:['Freshwater and saltwater licenses sold separately','Snook, lobster, scallop require additional permits','Check FWC for current red tide or algae bloom closures']},
+  'Georgia':       {agency:'GA Wildlife Resources Division',url:'https://gadnr.org/fishing',flag:'🍑',items:['Fishing license required for ages 16+','Trout fishing requires additional trout license','Check size limits for bass, crappie, and catfish']},
+  'Hawaii':        {agency:'HI Division of Aquatic Resources',url:'https://dlnr.hawaii.gov/dar/fishing/',flag:'🌺',items:['No license required for saltwater fishing in Hawaii','Freshwater fishing license required for streams/reservoirs','Certain species and areas are protected — check DAR rules']},
+  'Idaho':         {agency:'Idaho Fish & Game',url:'https://idfg.idaho.gov/fish',flag:'🏔️',items:['Fishing license required for ages 14+','Salmon/steelhead require additional permit tag','Check river-specific rules for hatchery vs wild fish retention']},
+  'Illinois':      {agency:'IL Dept of Natural Resources',url:'https://www2.illinois.gov/dnr/conservation/Pages/Fishing.aspx',flag:'🌽',items:['Fishing license required for ages 16+','Salmon/trout stamp required for Lake Michigan salmon','Check Lake Michigan special regulations']},
+  'Indiana':       {agency:'IN Dept of Natural Resources',url:'https://www.in.gov/dnr/fish-and-wildlife/fishing/',flag:'🏋️',items:['Fishing license required for ages 18+','Trout/salmon stamp for trout waters','Lake Michigan charter limits differ from inland waters']},
+  'Iowa':          {agency:'Iowa DNR',url:'https://www.iowadnr.gov/fishing',flag:'🌾',items:['Fishing license required for ages 16+','Second rod stamp allows use of two lines','Check daily bag limits for walleye and catfish']},
+  'Kansas':        {agency:'Kansas Wildlife & Parks',url:'https://ksoutdoors.com/Fishing',flag:'🌻',items:['Fishing license required for ages 16+','No saltwater fishing applicable','Check size limits for bass, crappie, and catfish']},
+  'Kentucky':      {agency:'KY Dept of Fish & Wildlife Resources',url:'https://fw.ky.gov/Fish/Pages/default.aspx',flag:'🏇',items:['Fishing license required for ages 16+','Trout permit required for designated trout waters','Check Kentucky Lake special regulations']},
+  'Louisiana':     {agency:'LA Dept of Wildlife & Fisheries',url:'https://www.wlf.louisiana.gov/page/fishing',flag:'🎷',items:['Basic fishing license required for ages 16+','Saltwater license required separately','Shrimp/crab/oyster require commercial licenses — no take for personal use without basic license']},
+  'Maine':         {agency:'ME Dept of Inland Fisheries & Wildlife',url:'https://www.maine.gov/ifw/fishing/',flag:'🦞',items:['Fishing license required for ages 16+','Saltwater fishing: no license needed for most species','Atlantic salmon fishing is severely restricted — check rules']},
+  'Maryland':      {agency:'MD Dept of Natural Resources',url:'https://dnr.maryland.gov/fisheries/pages/default.aspx',flag:'🦀',items:['Non-tidal fishing license required for freshwater','Tidal waters: free license with registration','Striped bass (rockfish) has strict size and season limits']},
+  'Massachusetts': {agency:'MA Division of Marine Fisheries',url:'https://www.mass.gov/fishing-licenses-and-permits',flag:'🦞',items:['Freshwater license required for ages 15+','No saltwater license required for recreational fishing','Check striped bass slot size and season dates']},
+  'Michigan':      {agency:'MI Dept of Natural Resources',url:'https://www.michigan.gov/dnr/manage-resources/wildlife/fisheries',flag:'🚗',items:['Fishing license required for ages 17+','All-Species Inland Trout/Salmon license for Great Lakes','Check size limits for walleye, pike, and bass on each water body']},
+  'Minnesota':     {agency:'MN Dept of Natural Resources',url:'https://www.dnr.state.mn.us/fishing/index.html',flag:'❄️',items:['Fishing license required for ages 16+','Walleye and northern pike have statewide size limits','Check lake-specific restrictions on DNR website']},
+  'Mississippi':   {agency:'MS Dept of Wildlife, Fisheries & Parks',url:'https://www.mdwfp.com/fishing.aspx',flag:'🎸',items:['Fishing license required for ages 16+','Saltwater permits required for Gulf fishing','Check special regulations for Ross Barnett Reservoir']},
+  'Missouri':      {agency:'Missouri Dept of Conservation',url:'https://mdc.mo.gov/fishing',flag:'🌁',items:['Fishing permit required for all residents 16+','Daily limit for most fish species is 50 (varies by species)','Trout park day permits required for designated trout parks']},
+  'Montana':       {agency:'Montana Fish, Wildlife & Parks',url:'https://fwp.mt.gov/fishing',flag:'🏔️',items:['Fishing license required for ages 12+','Additional Conservation License required for non-residents','Check river-specific rules — many streams have catch-and-release only sections']},
+  'Nebraska':      {agency:'Nebraska Game & Parks Commission',url:'https://outdoornebraska.gov/fishing/',flag:'🌽',items:['Fishing permit required for ages 16+','Aquatic Habitat stamp required with license','Check Platte River special regulations for paddlefish']},
+  'Nevada':        {agency:'Nevada Dept of Wildlife',url:'https://www.ndow.org/Fish/Fishing_License/',flag:'🎰',items:['Fishing license required for ages 12+','Trout stamp required for stocked trout lakes','Check Lake Mead National Recreation Area rules separately']},
+  'New Hampshire': {agency:'NH Fish & Game',url:'https://www.wildlife.state.nh.us/fishing/index.html',flag:'🍂',items:['Fishing license required for ages 16+','Saltwater fishing: no license needed','Brook trout catch-and-release only in some streams — check rules']},
+  'New Jersey':    {agency:'NJ Div of Fish & Wildlife',url:'https://www.state.nj.us/dep/fgw/fishing.htm',flag:'🦅',items:['Freshwater license required for ages 16+','Saltwater registration (free) required for ocean fishing','Check striped bass and fluke size limits — they change annually']},
+  'New Mexico':    {agency:'NM Dept of Game & Fish',url:'https://www.wildlife.state.nm.us/fishing/',flag:'🌵',items:['Fishing license required for ages 12+','Additional habitat stamp required','Check Gila River special trout regulations']},
+  'New York':      {agency:'NY Dept of Environmental Conservation',url:'https://www.dec.ny.gov/outdoor/7894.html',flag:'🗽',items:['Fishing license required for ages 16+','Marine recreational fishing registration required for salt water','Check Hudson River special striped bass regulations']},
+  'North Carolina':{agency:'NC Wildlife Resources Commission',url:'https://www.ncwildlife.org/Licensing/Fishing-Licenses',flag:'🌳',items:['Coastal recreational fishing license required for saltwater','Inland license required for freshwater','Striped bass special regulations on specific rivers — check rules']},
+  'North Dakota':  {agency:'ND Game & Fish Dept',url:'https://gf.nd.gov/fishing',flag:'🌾',items:['Fishing license required for ages 16+','Conservation license is a prerequisite for fishing license','Check Garrison Reservoir special walleye regulations']},
+  'Ohio':          {agency:'Ohio Dept of Natural Resources',url:'https://ohiodnr.gov/wps/portal/gov/odnr/buy-and-apply/hunting-fishing-guide/fishing',flag:'🌙',items:['Fishing license required for ages 16+','Lake Erie permits differ from inland water rules','Check walleye slot size limit on Lake Erie']},
+  'Oklahoma':      {agency:'Oklahoma Dept of Wildlife Conservation',url:'https://www.wildlifedepartment.com/fishing',flag:'🌪️',items:['Fishing license required for ages 16+','Trout license required for designated trout areas','Check Grand Lake and Texoma special striped bass rules']},
+  'Oregon':        {agency:'OR Dept of Fish & Wildlife',url:'https://myodfw.com/fishing/regulations',flag:'🌲',items:['Angling license required for ages 14+','Combined angling tag required for salmon, steelhead, sturgeon','Check weekly regulation updates — closures change frequently on OR rivers']},
+  'Pennsylvania':  {agency:'PA Fish & Boat Commission',url:'https://www.fishandboat.com/Fishing/Regulations/Pages/default.aspx',flag:'🔔',items:['Fishing license required for ages 16+','Trout/salmon permit stamp required for trout fishing','Check waterway-specific special regulations booklet']},
+  'Rhode Island':  {agency:'RI Division of Fish & Wildlife',url:'https://dem.ri.gov/programs/fish-wildlife/index.php',flag:'🦅',items:['Freshwater license required for ages 15+','Saltwater: fishing license required (free registration for some)','Check Narragansett Bay special size limits for scup and bass']},
+  'South Carolina':{agency:'SC Dept of Natural Resources',url:'https://www.dnr.sc.gov/fishing.html',flag:'🌴',items:['Saltwater recreational fishing license required','Freshwater fishing license required for inland waters','Red drum and spotted seatrout have slot size limits']},
+  'South Dakota':  {agency:'SD Game, Fish & Parks',url:'https://gfp.sd.gov/fishing/',flag:'🦅',items:['Fishing license required for ages 16+','Walleye and sauger have statewide limits','Check Missouri River special regulations below dams']},
+  'Tennessee':     {agency:'TN Wildlife Resources Agency',url:'https://www.tn.gov/twra/license-sales/fishing-licenses-and-permits.html',flag:'🎸',items:['Fishing license required for ages 13+','Trout license required for designated trout streams','Check Cherokee and Norris reservoir special regulations']},
+  'Texas':         {agency:'Texas Parks & Wildlife',url:'https://tpwd.texas.gov/regulations/outdoor-annual/fishing',flag:'🤠',items:['Fishing license required for ages 17+','Additional saltwater sport fishing stamp required for Gulf','Freshwater trout stamp required for stocked trout areas','Check red snapper federal season separately from state season']},
+  'Utah':          {agency:'Utah Division of Wildlife Resources',url:'https://wildlife.utah.gov/fishing.html',flag:'🏜️',items:['Fishing license required for ages 12+','Combination license includes hunting and fishing','Check lake-specific wiper and walleye limit rules']},
+  'Vermont':       {agency:'VT Fish & Wildlife Dept',url:'https://vtfishandwildlife.com/fish',flag:'🍁',items:['Fishing license required for ages 15+','No extra trout stamp required (included)','Check Connecticut River special bass regulations']},
+  'Virginia':      {agency:'VA Dept of Wildlife Resources',url:'https://dwr.virginia.gov/fishing/',flag:'🏛️',items:['Freshwater fishing license required for ages 16+','Saltwater recreational fishing license required','Check Chesapeake Bay striped bass slot size — updated annually']},
+  'Washington':    {agency:'WA Dept of Fish & Wildlife',url:'https://wdfw.wa.gov/fishing/regulations',flag:'🌲',items:['Fishing license required for ages 15+','Salmon/steelhead require additional punch card','Check WDFW weekly regulation updates — Puget Sound rules change frequently']},
+  'West Virginia': {agency:'WV Division of Natural Resources',url:'https://www.wvdnr.gov/fishing/fishing.shtm',flag:'⛰️',items:['Fishing license required for ages 15+','Trout license required for stocked trout streams','Check New River Gorge special regulations']},
+  'Wisconsin':     {agency:'WI Dept of Natural Resources',url:'https://dnr.wisconsin.gov/topic/Fishing',flag:'🧀',items:['Fishing license required for ages 16+','Inland trout stamp required for trout waters','Great Lakes license required for Lake Michigan/Superior fishing']},
+  'Wyoming':       {agency:'Wyoming Game & Fish',url:'https://wgfd.wyo.gov/Fishing',flag:'🦬',items:['Fishing license required for ages 14+','Non-resident licenses are more expensive — plan ahead','Check river-specific special rules for cutthroat trout waters']},
+  // Default
+  'default':       {agency:'Local Wildlife Authority',url:'https://www.fishingregulations.com',flag:'🌊',items:['Always carry a valid fishing license','Check local size and bag limits before fishing','Regulations vary by species and season — consult your local wildlife agency']}
+};
+
+// ── Render ────────────────────────────────────────────
+
+function renderVerdict(score, wind, swell, rain) {
+  const card = document.getElementById('verdict');
+  const emoji = document.getElementById('v-emoji');
+  const label = document.getElementById('v-label');
+  const sub = document.getElementById('v-sub');
+  const fill = document.getElementById('score-fill');
+  const lbl = document.getElementById('score-lbl');
+
+  card.className = 'verdict';
+  fill.style.width = score + '%';
+  lbl.textContent = `Conditions score: ${score}/100`;
+
+  const issues = [];
+  if (wind > 20) issues.push(`wind at ${Math.round(wind)} mph`);
+  if (swell !== null && swell > 6) issues.push(`rough swell at ${swell} ft`);
+  if (rain > 50) issues.push(`${Math.round(rain)}% rain chance`);
+
+  if (score >= 75) {
+    card.classList.add('go'); emoji.textContent = '🎣'; label.textContent = 'GO FISHING';
+    sub.textContent = issues.length ? `Mostly good. Watch out for ${issues.join(' and ')}.` : 'RECOMMENDATION: Conditions look great. Good luck out there.';
+  } else if (score >= 50) {
+    card.classList.add('marginal'); emoji.textContent = '🤔'; label.textContent = 'RECOMMENDATION: USE JUDGMENT';
+    sub.textContent = issues.length ? `Borderline: ${issues.join(' and ')}.` : 'Conditions are marginal. Proceed with care.';
+  } else {
+    card.classList.add('nogo'); emoji.textContent = '⛔'; label.textContent = 'RECOMMENDATION: STAY HOME';
+    sub.textContent = issues.length ? `Not recommended: ${issues.join(' and ')}.` : 'Conditions are poor today. Try again tomorrow.';
+  }
+}
+
+// ── Helpers: pull hourly weather/marine for a given day ──────────────────
+
+function getHourlyIdxForDay(dayIdx) {
+  const wh = state.weather?.hourly;
+  if (!wh) return -1;
+  const now = new Date();
+  const target = new Date(now);
+  target.setDate(now.getDate() + dayIdx);
+  const dateStr = localISODate(target);
+  const hour = dayIdx === 0 ? now.getHours() : 12;
+  const timeStr = `${dateStr}T${String(hour).padStart(2,'0')}:00`;
+  return wh.time.findIndex(t => t === timeStr);
+}
+
+function getMarineHourlyIdxForDay(dayIdx) {
+  const mh = state.marine?.hourly;
+  if (!mh) return -1;
+  const now = new Date();
+  const target = new Date(now);
+  target.setDate(now.getDate() + dayIdx);
+  const dateStr = localISODate(target);
+  const hour = dayIdx === 0 ? now.getHours() : 12;
+  const timeStr = `${dateStr}T${String(hour).padStart(2,'0')}:00`;
+  return mh.time.findIndex(t => t === timeStr);
+}
+
+function getWeatherForDay(dayIdx) {
+  if (dayIdx === 0) return state.weather?.current || null;
+  const wh = state.weather?.hourly;
+  const idx = getHourlyIdxForDay(dayIdx);
+  if (!wh || idx < 0) return null;
+  return {
+    wind_speed_10m:          wh.wind_speed_10m[idx],
+    wind_direction_10m:      wh.wind_direction_10m[idx],
+    wind_gusts_10m:          wh.wind_gusts_10m[idx],
+    precipitation_probability: wh.precipitation_probability[idx] ?? 0,
+    weather_code:            wh.weather_code[idx],
+    temperature_2m:          wh.temperature_2m?.[idx],
+    apparent_temperature:    wh.apparent_temperature?.[idx],
+  };
+}
+
+function getMarineForDay(dayIdx) {
+  if (dayIdx === 0) return state.marine?.current || null;
+  const mh = state.marine?.hourly;
+  const idx = getMarineHourlyIdxForDay(dayIdx);
+  if (!mh || idx < 0) return null;
+  return {
+    swell_wave_height:    mh.swell_wave_height?.[idx],
+    swell_wave_direction: mh.swell_wave_direction?.[idx],
+    swell_wave_period:    mh.swell_wave_period?.[idx],
+    wave_height:          mh.wave_height?.[idx],
+    wave_period:          mh.wave_period?.[idx],
+  };
+}
+
+function conditionsLabel(dayIdx) {
+  if (dayIdx === 0) return 'Current conditions';
+  const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const d = new Date(); d.setDate(d.getDate() + dayIdx);
+  const name = dayIdx === 1 ? 'Tomorrow' : dayNames[d.getDay()];
+  return `${name} at noon`;
+}
+
+// ── Render conditions ─────────────────────────────────────────────────────
+
+function renderConditions(w, m) {
+  // Fall back to current conditions if no data passed
+  w = w || state.weather?.current;
+  m = m || state.marine?.current;
+
+  // Wind
+  if (w) {
+    const wind = Math.round(w.wind_speed_10m);
+    const ws = sWind(wind);
+    document.getElementById('wind-val').innerHTML = `${wind}<span class="cu">mph</span>`;
+    document.getElementById('wind-dir').textContent = `From ${compass(w.wind_direction_10m)} (${mph2kts(wind)} kts)`;
+    document.getElementById('wind-gust').textContent = `Gusts to ${Math.round(w.wind_gusts_10m)} mph`;
+    document.getElementById('wind-arr').textContent = dirArrow(w.wind_direction_10m);
+    document.getElementById('wind-ind').className = `ind ${indClass(ws)}`;
+  }
+
+  // Rain / weather
+  if (w) {
+    const rain = Math.round(w.precipitation_probability ?? 0);
+    document.getElementById('rain-val').innerHTML = `${rain}<span class="cu">%</span>`;
+    document.getElementById('wx-desc').textContent = `${wxEmoji(w.weather_code)} ${wxCode(w.weather_code)}`;
+    const temp = w.temperature_2m != null ? `${Math.round(w.temperature_2m)}°F  feels ${Math.round(w.apparent_temperature)}°F` : '';
+    document.getElementById('temp-val').textContent = temp;
+    document.getElementById('rain-ind').className = `ind ${indClass(sRain(rain))}`;
+  }
+
+  // Swell
+  if (m && m.swell_wave_height != null) {
+    const swFt = parseFloat(m2ft(m.swell_wave_height));
+    const wvFt = parseFloat(m2ft(m.wave_height));
+    const per = m.swell_wave_period || m.wave_period;
+    document.getElementById('swell-sec').style.display = '';
+    document.getElementById('swell-grid').style.display = '';
+    document.getElementById('swell-val').innerHTML = `${swFt}<span class="cu">ft</span>`;
+    document.getElementById('swell-dir').textContent = m.swell_wave_direction ? `From ${compass(m.swell_wave_direction)}` : '';
+    document.getElementById('period-val').innerHTML = `${Math.round(per)}<span class="cu">s</span>`;
+    document.getElementById('wave-ht').textContent = `Wave height: ${wvFt} ft`;
+    document.getElementById('swell-ind').className = `ind ${indClass(sSwell(swFt))}`;
+    document.getElementById('period-ind').className = `ind ${indClass(sPeriod(per))}`;
+  } else {
+    document.getElementById('swell-sec').style.display = 'none';
+    document.getElementById('swell-grid').style.display = 'none';
+  }
+}
+
+function renderTides(dayIdx = 0) {
+  const td = state.tides;
+  const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const target = new Date();
+  target.setDate(target.getDate() + dayIdx);
+  const targetDate = localISODate(target);
+  const dayLabel = dayIdx === 0 ? "Today's Tides" : dayIdx === 1 ? "Tomorrow's Tides" : `${dayNames[target.getDay()]}'s Tides`;
+  document.getElementById('tide-day-lbl').textContent = dayLabel;
+
+  if (!td || !td.predictions || !td.predictions.length) {
+    document.getElementById('tide-events').innerHTML = '<div class="no-data">Tide data not available for this location</div>';
+    document.getElementById('tide-chart').parentElement.style.display = 'none';
+    document.getElementById('tide-station').style.display = 'none';
+    document.getElementById('tide-now').style.display = 'none';
+    document.getElementById('tide-summary').innerHTML = '';
+    return;
+  }
+
+  // Filter hilo predictions to selected day
+  const dayPreds = td.predictions.filter(p => p.t.startsWith(targetDate));
+
+  // Filter hourly tide data to selected day (for chart curve)
+  const dayHourly = td.hourly ? td.hourly.filter(p => p.t.startsWith(targetDate)) : null;
+
+  if (!dayPreds.length && !dayHourly?.length) {
+    document.getElementById('tide-events').innerHTML = '<div class="no-data">No tide data for this day</div>';
+    document.getElementById('tide-chart').parentElement.style.display = 'none';
+    document.getElementById('tide-now').style.display = 'none';
+    document.getElementById('tide-summary').innerHTML = '';
+    return;
+  }
+
+  // Build High / Low summary cards
+  const highs = dayPreds.filter(p => p.type === 'H').sort((a,b) => parseFloat(b.v)-parseFloat(a.v));
+  const lows  = dayPreds.filter(p => p.type === 'L').sort((a,b) => parseFloat(a.v)-parseFloat(b.v));
+  const summaryCards = [];
+  // Show all highs then all lows for the day
+  for (const p of highs) {
+    summaryCards.push(`
+      <div style="flex:1;background:rgba(56,189,248,.10);border:1px solid rgba(56,189,248,.25);border-radius:10px;padding:8px 10px;text-align:center;">
+        <div style="font-size:10px;font-weight:700;color:var(--blue-l);letter-spacing:.5px;margin-bottom:2px;">▲ HIGH</div>
+        <div style="font-size:20px;font-weight:700;color:var(--text);line-height:1.1;">${parseFloat(p.v).toFixed(1)}<span style="font-size:11px;color:var(--muted);font-weight:400">ft</span></div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px;">${fmtTime(p.t)}</div>
+      </div>`);
+  }
+  for (const p of lows) {
+    summaryCards.push(`
+      <div style="flex:1;background:rgba(148,163,184,.08);border:1px solid rgba(148,163,184,.2);border-radius:10px;padding:8px 10px;text-align:center;">
+        <div style="font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.5px;margin-bottom:2px;">▼ LOW</div>
+        <div style="font-size:20px;font-weight:700;color:var(--text);line-height:1.1;">${parseFloat(p.v).toFixed(1)}<span style="font-size:11px;color:var(--muted);font-weight:400">ft</span></div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px;">${fmtTime(p.t)}</div>
+      </div>`);
+  }
+  document.getElementById('tide-summary').innerHTML = summaryCards.length
+    ? summaryCards.join('')
+    : '';
+
+  document.getElementById('tide-chart').parentElement.style.display = '';
+  renderTideChart(dayPreds, dayHourly, dayIdx);
+
+  // Detailed tide events list (all highs and lows in chronological order)
+  document.getElementById('tide-events').innerHTML = dayPreds.length
+    ? dayPreds.map(p => `
+        <div class="te ${p.type==='H'?'hi':'lo'}">
+          <div class="te-type">${p.type==='H'?'▲ High':'▼ Low'}</div>
+          <div class="te-ht">${parseFloat(p.v).toFixed(1)} ft</div>
+          <div class="te-time">${fmtTime(p.t)}</div>
+        </div>`).join('')
+    : '<div class="no-data">High/low data unavailable</div>';
+
+  document.getElementById('tide-station').textContent = `📍 ${td.station}`;
+  document.getElementById('tide-station').style.display = '';
+}
+
+function renderTideChart(preds, hourlyPts, dayIdx = 0) {
+  const svg = document.getElementById('tide-chart');
+  const W=340, H=75, pad={t:6,b:6,l:6,r:6};
+  const cW=W-pad.l-pad.r, cH=H-pad.t-pad.b;
+
+  // Build curve — use hourly data directly if available (more accurate),
+  // otherwise cosine-interpolate between hilo points
+  let curve = [];
+  if (hourlyPts && hourlyPts.length > 1) {
+    curve = hourlyPts.map(p => ({ t: t2mins(p.t), h: parseFloat(p.v) }));
+  } else if (preds && preds.length > 0) {
+    let pts = preds.map(p => ({ t: t2mins(p.t), h: parseFloat(p.v) }));
+    if (pts[0].t > 0) pts.unshift({ t: 0, h: pts[0].h });
+    if (pts[pts.length-1].t < 1440) pts.push({ t: 1440, h: pts[pts.length-1].h });
+    for (let i = 0; i < pts.length-1; i++) {
+      const p1=pts[i], p2=pts[i+1], steps=Math.max(8, Math.round((p2.t-p1.t)/10));
+      for (let s = 0; s <= steps; s++) {
+        const f=s/steps, mu=(1-Math.cos(f*Math.PI))/2;
+        curve.push({ t: p1.t+f*(p2.t-p1.t), h: p1.h*(1-mu)+p2.h*mu });
+      }
+    }
+  }
+
+  if (!curve.length) { svg.innerHTML = ''; return; }
+
+  const minH = Math.min(...curve.map(p=>p.h)) - .3;
+  const maxH = Math.max(...curve.map(p=>p.h)) + .3;
+  const xS = t => pad.l + (t/1440)*cW;
+  const yS = h => pad.t + cH - ((h-minH)/(maxH-minH))*cH;
+
+  let d = '', first = true;
+  for (const p of curve) { d += (first?'M':'L')+xS(p.t).toFixed(1)+','+yS(p.h).toFixed(1); first=false; }
+  const areaPath = d + `L${xS(1440).toFixed(1)},${H} L${xS(0).toFixed(1)},${H} Z`;
+
+  // Marker: "now" for today, noon for future days
+  let markerM, markerLabel, markerH = '';
+  if (dayIdx === 0) {
+    markerM = nowMins();
+    markerLabel = 'now';
+  } else {
+    markerM = 12 * 60; // noon
+    markerLabel = 'noon';
+  }
+  const markerX = xS(markerM);
+  for (let i = 0; i < curve.length-1; i++) {
+    if (curve[i].t <= markerM && curve[i+1].t >= markerM) {
+      const f = (markerM-curve[i].t)/(curve[i+1].t-curve[i].t);
+      markerH = (curve[i].h + f*(curve[i+1].h-curve[i].h)).toFixed(1);
+      break;
+    }
+  }
+  const markerY = markerH ? yS(parseFloat(markerH)) : pad.t+cH/2;
+
+  const tideNowEl = document.getElementById('tide-now');
+  if (markerH) {
+    tideNowEl.textContent = `${markerH} ft ${markerLabel}`;
+    tideNowEl.style.display = '';
+  } else {
+    tideNowEl.style.display = 'none';
+  }
+
+  svg.innerHTML = `
+    <defs>
+      <linearGradient id="tg" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#2563eb" stop-opacity="0.35"/>
+        <stop offset="100%" stop-color="#2563eb" stop-opacity="0.04"/>
+      </linearGradient>
+    </defs>
+    <path d="${areaPath}" fill="url(#tg)"/>
+    <path d="${d}" fill="none" stroke="#60a5fa" stroke-width="2" stroke-linejoin="round"/>
+    <line x1="${markerX.toFixed(1)}" y1="${pad.t}" x2="${markerX.toFixed(1)}" y2="${H-pad.b}"
+          stroke="#fbbf24" stroke-width="1.5" stroke-dasharray="3,3"/>
+    <circle cx="${markerX.toFixed(1)}" cy="${markerY.toFixed(1)}" r="4"
+            fill="#fbbf24" stroke="#060e1e" stroke-width="1.5"/>
+  `;
+}
+
+function renderFish() {
+  const list = document.getElementById('fish-list');
+  const note = document.getElementById('fish-note');
+
+  if (!state.fish || !state.fish.length) {
+    list.innerHTML = '<div class="no-data">No fish observation data found for this area</div>';
+    note.textContent = '';
+    return;
+  }
+
+  list.innerHTML = state.fish.map((f, i) => {
+    const t = f.taxon;
+    const name = t.preferred_common_name ? capitalize(t.preferred_common_name) : capitalize(t.name);
+    const sci = t.preferred_common_name ? t.name : '';
+    const photo = t.default_photo?.square_url || '';
+    const cnt = f.count;
+    return `
+      <div class="fish-card">
+        <div class="fish-rank">${i+1}</div>
+        <div class="fish-img">${photo ? `<img src="${photo}" alt="${name}" loading="lazy">` : '🐟'}</div>
+        <div class="fish-info">
+          <div class="fish-common">${name}</div>
+          ${sci ? `<div class="fish-sci">${sci}</div>` : ''}
+          <div class="fish-count">${cnt} observation${cnt!==1?'s':''} nearby</div>
+        </div>
+        <span class="fish-badge">Nearby</span>
+      </div>`;
+  }).join('');
+
+  note.textContent = 'Based on verified wildlife observations within 25 miles (iNaturalist)';
+}
+
+function renderRegs() {
+  const card = document.getElementById('reg-card');
+  const addr = state.locData?.address;
+  const stateName = addr?.state || 'default';
+  const reg = REGS[stateName] || REGS['default'];
+
+  card.innerHTML = `
+    <div class="reg-state-row">
+      <span class="reg-flag">${reg.flag}</span>
+      <div>
+        <div class="reg-state-name">${stateName !== 'default' ? stateName : 'General'} Fishing Rules</div>
+        <div class="reg-agency">${reg.agency}</div>
+      </div>
+    </div>
+    <div class="reg-items">
+      ${reg.items.map(item=>`
+        <div class="reg-item">
+          <span class="reg-item-icon">📋</span>
+          <span>${item}</span>
+        </div>`).join('')}
+    </div>
+    <a class="reg-link" href="${reg.url}" target="_blank" rel="noopener">View Current ${stateName !== 'default' ? stateName : ''} Regulations ↗</a>
+    <div class="reg-disclaimer">⚠️ Regulations change. Always verify with your state agency before fishing. This app does not guarantee accuracy of current rules.</div>
+  `;
+}
+
+function capitalize(s) { return s ? s.charAt(0).toUpperCase()+s.slice(1).toLowerCase() : s; }
+
+// ── Hourly forecast ───────────────────────────────────
+
+let hourlyTab = 'all';
+let selectedDay = 0;
+
+function setHourlyTab(tab, el) {
+  hourlyTab = tab;
+  document.querySelectorAll('.htab').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  renderHourly();
+}
+
+function setDay(idx, el) {
+  selectedDay = idx;
+  document.querySelectorAll('.dtab').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+
+  // Update conditions cards + verdict for selected day
+  const w = getWeatherForDay(idx);
+  const m = getMarineForDay(idx);
+  renderConditions(w, m);
+
+  const wind = w?.wind_speed_10m ?? 0;
+  const rain = w?.precipitation_probability ?? 0;
+  const swellFt = m?.swell_wave_height != null ? parseFloat(m2ft(m.swell_wave_height)) : null;
+  const period = m?.swell_wave_period || m?.wave_period || null;
+  renderVerdict(calcScore(wind, swellFt, period, rain), wind, swellFt, rain);
+
+  // Update the conditions time label
+  document.getElementById('cond-label').textContent = conditionsLabel(idx);
+
+  renderTides(idx);
+  renderHourly();
+  document.getElementById('hourly-scroll').scrollLeft = 0;
+}
+
+function scrollHourly(dir) {
+  const el = document.getElementById('hourly-scroll');
+  el.scrollBy({ left: dir * 240, behavior: 'smooth' });
+}
+
+function buildDayTabs() {
+  const wh = state.weather?.hourly;
+  if (!wh || !wh.time) return;
+  const days = [], seen = new Set();
+  for (const t of wh.time) {
+    const date = t.split('T')[0];
+    if (!seen.has(date)) { seen.add(date); days.push(date); }
+  }
+  const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const now = new Date();
+  const todayStr = localISODate(now);
+  const tomorrowD = new Date(now); tomorrowD.setDate(now.getDate()+1);
+  const tomorrowStr = localISODate(tomorrowD);
+  document.getElementById('day-tabs').innerHTML = days.map((date, i) => {
+    const d = new Date(date + 'T12:00:00');
+    const label = date === todayStr ? 'Today' : date === tomorrowStr ? 'Tomorrow' : dayNames[d.getDay()];
+    return `<button class="dtab${i===selectedDay?' active':''}" onclick="setDay(${i},this)">${label}</button>`;
+  }).join('');
+}
+
+// Build tide map keyed by "YYYY-MM-DD HH" for multi-day lookup
+function buildTideMap() {
+  const map = {};
+  if (!state.tides?.hourly) return map;
+  for (const p of state.tides.hourly) {
+    // p.t is like "2024-03-15 06:00"
+    const parts = p.t.split(' ');
+    const key = `${parts[0]} ${parts[1].slice(0,2)}`; // "2024-03-15 06"
+    map[key] = parseFloat(p.v).toFixed(1);
+  }
+  return map;
+}
+
+function renderHourly() {
+  const container = document.getElementById('hourly-scroll');
+  const wh = state.weather?.hourly;
+  if (!wh || !wh.time || !wh.time.length) {
+    container.innerHTML = '<div class="no-data">Hourly data unavailable</div>';
+    return;
+  }
+
+  const tideMap = buildTideMap();
+  const mh = state.marine?.hourly;
+  const now = new Date();
+  const nowHour = now.getHours();
+
+  // Find the target date string for selected day
+  const targetDate = new Date(now);
+  targetDate.setDate(now.getDate() + selectedDay);
+  const targetDateStr = localISODate(targetDate);
+
+  // Build marine lookup keyed by exact time string from the API (e.g. "2024-03-15T08:00")
+  // Use wave_height as fallback when swell_wave_height is unavailable
+  const marineByTime = {};
+  if (mh && mh.time) {
+    mh.time.forEach((t, j) => {
+      const swellM = mh.swell_wave_height?.[j];
+      const waveM  = mh.wave_height?.[j];
+      const heightM = swellM ?? waveM ?? null;
+      const period  = mh.swell_wave_period?.[j] ?? mh.wave_period?.[j] ?? null;
+      if (heightM !== null) {
+        marineByTime[t] = {
+          swellFt: parseFloat(m2ft(heightM)).toFixed(1),
+          period: period ? Math.round(period) : null,
+          isSwell: swellM != null
+        };
+      }
+    });
+  }
+  const hasMarine = Object.keys(marineByTime).length > 0;
+
+  // Get all hourly indices matching target date
+  const indices = wh.time
+    .map((t, i) => ({ t, i }))
+    .filter(({ t }) => t.startsWith(targetDateStr))
+    .map(({ i }) => i);
+
+  // For today, only show current hour onward
+  const filtered = selectedDay === 0
+    ? indices.filter(i => parseInt(wh.time[i].split('T')[1]) >= nowHour)
+    : indices;
+
+  const cards = [];
+  filtered.forEach((i, pos) => {
+    const hourStr = wh.time[i].split('T')[1].slice(0, 2);
+    const hour = parseInt(hourStr);
+    const isNow = selectedDay === 0 && pos === 0;
+    const label = isNow ? 'Now' : hourLabel(hour);
+
+    const wind = Math.round(wh.wind_speed_10m[i]);
+    const windDir = wh.wind_direction_10m[i];
+    const rain = Math.round(wh.precipitation_probability[i] ?? 0);
+    const code = wh.weather_code[i] ?? 0;
+
+    const windCls = wind <= 10 ? 'wg' : wind <= 20 ? 'wm' : 'wb';
+    const rainCls = rain <= 20 ? 'rg' : rain <= 50 ? 'rm' : 'rb';
+
+    const tideKey = `${targetDateStr} ${hourStr}`;
+    const tideHt = tideMap[tideKey] || null;
+
+    // Match marine data using the same time string as the weather API
+    const marineTime = wh.time[i]; // e.g. "2024-03-15T08:00"
+    const marineEntry = marineByTime[marineTime] || null;
+    const swellFt  = marineEntry?.swellFt || null;
+    const swellPer = marineEntry?.period  || null;
+    const swellNum = swellFt ? parseFloat(swellFt) : null;
+    const swellCls = swellNum === null ? '' : swellNum <= 2 ? 'wg' : swellNum <= 5 ? 'wm' : 'wb';
+
+    const showWind  = hourlyTab === 'all' || hourlyTab === 'wind';
+    const showRain  = hourlyTab === 'all' || hourlyTab === 'rain';
+    const showTide  = (hourlyTab === 'all' || hourlyTab === 'tide') && tideHt !== null;
+    const showSwell = hourlyTab === 'all' || hourlyTab === 'swell';
+    const showWx    = hourlyTab === 'all';
+
+    const swellDisplay = swellFt
+      ? `${swellFt}<span style="font-size:10px;font-weight:400">ft</span>${swellPer ? ` <span style="font-size:10px;color:var(--muted)">${swellPer}s</span>` : ''}`
+      : '—';
+
+    cards.push(`
+      <div class="hcard${isNow ? ' now' : ''}">
+        <div class="hcard-time">${label}</div>
+        ${showWx ? `<div class="hcard-wx">${wxEmoji(code)}</div>` : ''}
+        ${showWind ? `<div class="hcard-item"><div class="hcard-lbl">WIND</div><div class="hcard-row ${windCls}"><span class="hcard-dir">${dirArrow(windDir)}</span>${wind}<span style="font-size:10px;font-weight:400">mph</span></div></div>` : ''}
+        ${showRain ? `<div class="hcard-item"><div class="hcard-lbl">RAIN</div><div class="hcard-row ${rainCls}">💧${rain}<span style="font-size:10px;font-weight:400">%</span></div></div>` : ''}
+        ${showTide ? `<div class="hcard-item"><div class="hcard-lbl">TIDE</div><div class="hcard-tide">≈${tideHt}ft</div></div>` : ''}
+        ${showSwell ? `<div class="hcard-item"><div class="hcard-lbl">SWELL</div><div class="hcard-row ${swellCls}">🌊${!hasMarine ? '<span style="font-size:10px;color:var(--muted)">N/A</span>' : swellDisplay}</div></div>` : ''}
+      </div>`);
+  });
+
+  container.innerHTML = cards.length ? cards.join('') : '<div class="no-data">No data for this day</div>';
+}
+
+function renderAll() {
+  const displayName = state.usingZip ? (state.zipName || state.locName) : (state.locName || 'Your Location');
+  document.getElementById('loc-name').textContent = displayName;
+  document.querySelector('.loc-dot').style.background = state.usingZip ? 'var(--blue-l)' : 'var(--green-l)';
+
+  renderConditions(state.weather?.current, state.marine?.current);
+  document.getElementById('cond-label').textContent = 'Current conditions';
+  selectedDay = 0;
+  buildDayTabs();
+  renderHourly();
+  renderTides();
+  renderFish();
+  renderRegs();
+
+  const w = state.weather?.current;
+  const m = state.marine?.current;
+  const wind = w ? w.wind_speed_10m : 0;
+  const rain = w ? (w.precipitation_probability ?? 0) : 0;
+  const swellFt = m && m.swell_wave_height != null ? parseFloat(m2ft(m.swell_wave_height)) : null;
+  const period = m ? m.swell_wave_period || m.wave_period : null;
+  const score = calcScore(wind, swellFt, period, rain);
+
+  renderVerdict(score, wind, swellFt, rain);
+  document.getElementById('upd-time').textContent = `Updated ${nowTime()}`;
+}
+
+// ── Flow ──────────────────────────────────────────────
+
+function setLoadMsg(msg) { document.getElementById('load-msg').textContent = msg; }
+
+function showMain() {
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('error').style.display = 'none';
+  document.getElementById('main').style.display = 'block';
+}
+
+function showError(msg) {
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('main').style.display = 'none';
+  const err = document.getElementById('error');
+  err.style.display = 'flex';
+  document.getElementById('error-msg').textContent = msg;
+}
+
+async function refresh() {
+  const btn = document.getElementById('refresh-btn');
+  btn.style.transition = 'transform .5s ease';
+  btn.style.transform = 'rotate(360deg)';
+  setTimeout(()=>{btn.style.transform='';btn.style.transition='';},500);
+  try { await loadData(); } catch(e) { console.error(e); }
+}
+
+async function loadData() {
+  setLoadMsg('Loading weather & conditions…');
+  const [weather, marine, tides, fish, locData] = await Promise.all([
+    fetchWeather(state.lat, state.lon),
+    fetchMarine(state.lat, state.lon),
+    fetchTides(state.lat, state.lon),
+    fetchFish(state.lat, state.lon),
+    reverseGeocode(state.lat, state.lon)
+  ]);
+
+  state.weather = weather;
+  state.marine = marine;
+  state.tides = tides;
+  state.fish = fish;
+  state.locData = locData;
+
+  const a = locData?.address;
+  state.locName = a?.city || a?.town || a?.village || a?.county || 'Your Location';
+
+  showMain();
+  renderAll();
+}
+
+async function init() {
+  document.getElementById('loading').style.display = 'flex';
+  document.getElementById('error').style.display = 'none';
+  document.getElementById('main').style.display = 'none';
+  setLoadMsg('Getting your location…');
+  try {
+    const loc = await getLocation();
+    state.lat = loc.lat;
+    state.lon = loc.lon;
+    await loadData();
+  } catch(e) {
+    showError(e.message);
+  }
+}
+
+init();
+</script>
+</body>
+</html>
