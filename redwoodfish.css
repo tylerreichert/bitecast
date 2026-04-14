@@ -447,7 +447,7 @@ body {
 .disc-btn:not(:disabled):active { opacity: .85; }
 .disc-footer {
   font-size: 11px;
-  color: var(--dim);
+  color: var(--muted);
   text-align: center;
   line-height: 1.4;
 }
